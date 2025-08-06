@@ -1,0 +1,8 @@
+# Ignore your Apple Music private key file
+AuthKey_3S7KV79R9Q.p8
+
+# Ignore node_modules (auto-installed)
+node_modules/
+
+# Ignore environment files if you use them later
+.env

@@ -1,0 +1,16 @@
+{
+  "name": "music-token-server",
+  "version": "1.0.0",
+  "description": "Secure Apple Music developer token server for TeenConnect",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "author": "TeenConnect",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2"
+  }
+}
