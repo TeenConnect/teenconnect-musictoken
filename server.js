@@ -1,4 +1,3 @@
-// server.js
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
@@ -6,10 +5,10 @@ const cors = require('cors');
 const app = express();
 app.use(cors());
 
-// Load credentials from environment variables
-const TEAM_ID = process.env.TEAM_ID;
-const KEY_ID = process.env.KEY_ID;
-const PRIVATE_KEY = process.env.PRIVATE_KEY.replace(/\\n/g, '\n'); // Fix newline formatting
+// ✅ Load credentials from environment variables
+const TEAM_ID = process.env.APPLE_TEAM_ID;
+const KEY_ID = process.env.APPLE_KEY_ID;
+const PRIVATE_KEY = process.env.APPLE_PRIVATE_KEY.replace(/\\n/g, '\n'); // Fix newline formatting
 
 // Serve developer token on request
 app.get('/token', (req, res) => {
