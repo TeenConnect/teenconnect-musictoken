@@ -1,0 +1,1075 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TeenConnect Music</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet" />
+
+<!-- Apple MusicKit -->
+<script src="https://js-cdn.music.apple.com/musickit/v1/musickit.js"></script>
+<script>
+  let music = null;
+
+  document.addEventListener('DOMContentLoaded', () => {
+    fetch('https://teenconnect-musictoken.onrender.com/token')
+      .then(response => response.json())
+      .then(data => {
+        music = MusicKit.configure({
+          developerToken: data.token,
+          app: {
+            name: 'TeenConnect Music',
+            build: '1.0.0'
+          }
+        });
+
+        music.authorize().then(userToken => {
+          console.log('✅ Apple Music User Token:', userToken);
+          setupMusicUI();
+        });
+      })
+      .catch(error => {
+        console.error("❌ Token fetch failed:", error);
+      });
+  });
+  // Setup functions only after music is ready
+  function setupMusicUI() {
+    // Search Music
+    window.searchMusic = async function () {
+      const term = document.getElementById("musicSearch").value.trim();
+      if (!term || !music) return;
+      const res = await music.api.search(term, { types: ['songs'] });
+      const songs = res.songs?.data || [];
+      renderSongs(songs, "results");
+    };
+
+    // Play selected song
+    window.playSong = function (song) {
+      const img = song.attributes.artwork.url.replace("{w}x{h}", "300x300");
+      music.setQueue({ song: song.id }).then(() => {
+        music.play();
+
+        document.getElementById("nowPlayingTitle").innerText = song.attributes.name;
+        document.getElementById("nowPlayingArtist").innerText = song.attributes.artistName;
+
+        saveHistory(song);
+      });
+    };
+function setupMusicUI() {
+  // existing searchMusic/playSong/playTiaRecommendations/etc...
+
+  // Load dynamic content
+  loadHomeFeatured();
+  loadNewReleases();
+  loadRadioStations();
+}
+
+// Home - Featured
+async function loadHomeFeatured() {
+  const res = await music.api.search("Top Songs", { types: ["songs"], limit: 6 });
+  const songs = res.songs?.data || [];
+  renderSongs(songs, "homeFeatured");
+}
+
+// New Releases - Albums
+async function loadNewReleases() {
+  const res = await music.api.search("New Releases", { types: ["albums"], limit: 6 });
+  const albums = res.albums?.data || [];
+
+  const container = document.getElementById("newReleases");
+  container.innerHTML = "";
+
+  albums.forEach(album => {
+    const art = album.attributes.artwork.url.replace("{w}x{h}", "300x300");
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML = `
+      <img src="${art}" />
+      <div class="song-name">${album.attributes.name}</div>
+      <div class="artist">${album.attributes.artistName}</div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+// Radio - Genre Stations
+async function loadRadioStations() {
+  const genres = ["Hip-Hop", "Pop", "Afrobeats", "Electronic", "Jazz", "Chill"];
+  const container = document.getElementById("radioStations");
+  container.innerHTML = "";
+
+  for (let genre of genres) {
+    const res = await music.api.search(genre + " Radio", { types: ["stations"], limit: 1 });
+    const station = res.stations?.data?.[0];
+    if (station) {
+      const art = station.attributes.artwork.url.replace("{w}x{h}", "300x300");
+      const card = document.createElement("div");
+      card.className = "card";
+      card.innerHTML = `
+        <img src="${art}" />
+        <div class="song-name">${station.attributes.name}</div>
+        <div class="artist">${station.attributes.artistName}</div>
+      `;
+      card.onclick = () => playStation(station.id);
+      container.appendChild(card);
+    }
+  }
+}
+
+// Play Radio Station
+function playStation(stationId) {
+  music.setQueue({ station: stationId }).then(() => music.play());
+}
+
+    // Play all AI recommendations
+    window.playTiaRecommendations = function () {
+      const cards = document.querySelectorAll("#tiaSuggestions .card");
+      const songNames = Array.from(cards).map(c => c.innerText);
+      if (!songNames.length) return alert("No suggestions available.");
+
+      const firstQuery = songNames[0];
+      music.api.search(firstQuery, { types: ['songs'] }).then(res => {
+        const match = res.songs?.data?.[0];
+        if (match) playSong(match);
+        else alert("Could not play suggestion.");
+      });
+    };
+
+    // Visualizer trigger
+    music.addEventListener("playbackStateDidChange", (event) => {
+      if (event.state === MusicKit.PlaybackStates.playing) {
+        animateVisualizer();
+      }
+    });
+  }
+</script>
+
+  <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore-compat.js"></script>
+
+  <style>
+:root {
+  --brand: #d22a75;
+  --text: #333;
+  --bg: #fafafa;
+}
+
+body {
+  margin: 0;
+  font-family: 'Poppins', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  padding-bottom: 80px; /* ⬅️ increased from 10px to 80px */
+}
+
+#header {
+  background: #fff;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #eee;
+  position: sticky;
+  top: 0;
+  z-index: 999;
+}
+
+#header .logo-wrap {
+  display: flex;
+  align-items: center;
+}
+
+#header img {
+  height: 28px;
+  margin-right: 10px;
+}
+
+.search-section {
+  text-align: center;
+  margin: 24px 16px;
+}
+
+.search-section input {
+  width: 90%;
+  padding: 14px;
+  font-size: 16px;
+  border-radius: 12px;
+  border: 1px solid #ccc;
+  margin-bottom: 12px;
+}
+
+.search-section button {
+  background: var(--brand);
+  border: none;
+  color: white;
+  font-weight: 600;
+  font-size: 16px;
+  padding: 10px 24px;
+  border-radius: 20px;
+  cursor: pointer;
+}
+
+h3.section-title {
+  margin: 30px 20px 10px;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.results-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 16px;
+}
+.song-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  padding: 10px 16px;
+}
+
+.song-card {
+  background: #fff;
+  border-radius: 10px;
+  overflow: hidden;
+  font-family: 'Poppins', sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+
+.song-card img {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+.song-info {
+  padding: 8px;
+  text-align: center;
+}
+
+.song-title,
+.song-artist,
+.song-meta {
+  font-size: 13px;
+  line-height: 1.2em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.song-title {
+  font-weight: 600;
+  color: #222;
+}
+
+.song-artist {
+  color: #666;
+}
+
+.song-meta {
+  color: #aaa;
+  font-style: italic;
+}
+.card {
+  width: 180px;
+  background: white;
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  text-align: center;
+}
+
+.card img {
+  width: 100%;
+  border-radius: 10px;
+}
+
+.card .song-name {
+  font-weight: 600;
+  margin-top: 8px;
+}
+
+.card .artist {
+  font-size: 13px;
+  color: #777;
+}
+.footer-tabs {
+  position: fixed;
+  bottom: 0;
+  width: 100%;
+  background: #fff;
+  border-top: 1px solid #ddd;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  z-index: 999;
+}
+
+.footer-tabs button {
+  flex: 1;
+  padding: 12px 5px;
+  font-size: 14px;
+  color: #888;
+  background: none;
+  border: none;
+  font-family: 'Poppins', sans-serif;
+  cursor: pointer;
+}
+
+.footer-tabs button.active {
+  color: var(--brand);
+  font-weight: 600;
+}
+
+.footer-tabs button:hover {
+  background: rgba(210, 42, 117, 0.05);
+}
+
+.footer-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tab-panel {
+  padding-bottom: 0 !important;
+}
+
+.tab-panel.active {
+  display: block;
+}
+
+@media (min-width: 768px) {
+  .footer-tabs button {
+    padding: 15px 10px;
+    font-size: 15px;
+  }
+
+  .logo-wrap {
+    justify-content: flex-start !important;
+  }
+}
+
+.category-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+
+.category {
+  background: #f0f0f0;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.2s ease;
+}
+
+.category:hover {
+  background: #e0e0e0;
+}
+
+.show-more-btn {
+  background: #d22a75;
+  color: #fff;
+  border: none;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+/* ========== OVERLAY SLIDE-UP & FADE-IN ========== */
+#categoryOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 9999;
+  transition: opacity 0.3s ease;
+  overflow-y: auto; /* ✅ allows scroll */
+}
+
+#categoryOverlay.active {
+  display: flex;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.overlay-content::-webkit-scrollbar {
+  width: 6px;
+}
+.overlay-content::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 3px;
+}
+.overlay-content {
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  width: 100%;
+  max-height: 80vh; /* 👈 ADDED */
+  overflow-y: auto; /* ✅ ensures scroll */
+  padding-bottom: 80px;
+  animation: slideUp 0.3s ease;
+}
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  position: absolute;
+  right: 20px;
+  top: 16px;
+  cursor: pointer;
+}
+
+.overlay-title {
+  font-size: 22px;
+  font-weight: bold;
+  color: #222;
+  text-align: center;
+  margin: 20px 0;
+}
+.all-categories {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 16px 40px;
+}
+
+.category.fade-in-on-scroll {
+  flex: 0 0 46%;
+  text-align: center;
+  padding: 14px 10px;
+  font-size: 15px;
+  font-weight: 500;
+  border-radius: 10px;
+  background: #f7f7f7;
+  transition: background 0.3s, transform 0.4s ease;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06);
+}
+
+.category.fade-in-on-scroll:hover {
+  background: #eee;
+}
+
+.fade-in-on-scroll {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.fade-in-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+#popularSuggestions {
+  animation: fadeIn 0.4s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+footer {
+    font-family: 'Poppins', sans-serif;
+    text-align: center;
+    font-size: 12px;
+    color: #888;
+    padding: 8px 16px;
+    margin: 0;
+    opacity: 0;
+    animation: fadeInFooter 0.8s ease-in-out forwards;
+    position: relative;
+  }
+
+  @keyframes fadeInFooter {
+    to {
+      opacity: 1;
+    }
+  }
+</style>
+<div id="tab-search" class="tab-panel active">
+
+  <!-- Full-width search bar with autocomplete dropdown -->
+  <div class="search-section" style="position:relative;">
+    <input id="musicSearch" placeholder="Search songs, artists, albums..." oninput="showDropdown()" autocomplete="off"/>
+    <div id="searchDropdown" style="
+      position:absolute; width:100%; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.1);
+      border-radius:12px; display:none; max-height:250px; overflow-y:auto; z-index:1000;">
+    </div>
+  </div>
+
+  <!-- Browse Categories (Fully Expanded to match screenshot) -->
+<h3 class="section-title">Browse Categories</h3>
+
+<!-- Preview: Show only top 5 -->
+<div id="browsePreview" class="category-preview" style="justify-content: center; text-align: center;">
+  <div class="category">Hip-Hop</div>
+  <div class="category">Pop</div>
+  <div class="category">R&B</div>
+  <div class="category">Jazz</div>
+  <div class="category">Country</div>
+</div>
+
+<div style="text-align:center; margin-top: 10px;">
+  <button onclick="openCategoryOverlay()" class="show-more-btn">Show All Categories</button>
+</div>
+
+<!-- Slide-up Category Overlay -->
+<div id="categoryOverlay" class="overlay drawer-slide">
+  <div class="overlay-content">
+    <button class="close-btn" onclick="closeCategoryOverlay()">✕</button>
+    <h3 class="overlay-title">Explore All Categories</h3>
+
+    <div class="all-categories">
+      <div class="category fade-in-on-scroll">Summertime Sounds</div>
+      <div class="category fade-in-on-scroll">Apple Music Radio</div>
+      <div class="category fade-in-on-scroll">Charts</div>
+      <div class="category fade-in-on-scroll">Coming Soon</div>
+      <div class="category fade-in-on-scroll">Hip-Hop</div>
+      <div class="category fade-in-on-scroll">Country</div>
+      <div class="category fade-in-on-scroll">Pop</div>
+      <div class="category fade-in-on-scroll">Spatial Audio</div>
+      <div class="category fade-in-on-scroll">R&B</div>
+      <div class="category fade-in-on-scroll">Latin</div>
+      <div class="category fade-in-on-scroll">Set Lists</div>
+      <div class="category fade-in-on-scroll">Indie</div>
+      <div class="category fade-in-on-scroll">Alternative</div>
+      <div class="category fade-in-on-scroll">K-Pop</div>
+      <div class="category fade-in-on-scroll">Dance</div>
+      <div class="category fade-in-on-scroll">DJ Mixes</div>
+      <div class="category fade-in-on-scroll">Hits</div>
+      <div class="category fade-in-on-scroll">Essentials</div>
+      <div class="category fade-in-on-scroll">Party</div>
+      <div class="category fade-in-on-scroll">Sing</div>
+      <div class="category fade-in-on-scroll">Feel Good</div>
+      <div class="category fade-in-on-scroll">Rock</div>
+      <div class="category fade-in-on-scroll">Classic Rock</div>
+      <div class="category fade-in-on-scroll">Classical</div>
+      <div class="category fade-in-on-scroll">Music Videos</div>
+      <div class="category fade-in-on-scroll">Electronic</div>
+      <div class="category fade-in-on-scroll">Música Mexicana</div>
+      <div class="category fade-in-on-scroll">Urbano Latino</div>
+      <div class="category fade-in-on-scroll">Metal</div>
+      <div class="category fade-in-on-scroll">Film, TV & Stage</div>
+      <div class="category fade-in-on-scroll">Hard Rock</div>
+      <div class="category fade-in-on-scroll">Sleep</div>
+      <div class="category fade-in-on-scroll">Chill</div>
+      <div class="category fade-in-on-scroll">Sound Therapy</div>
+      <div class="category fade-in-on-scroll">Wellbeing</div>
+      <div class="category fade-in-on-scroll">Kids</div>
+      <div class="category fade-in-on-scroll">Family</div>
+      <div class="category fade-in-on-scroll">Christian</div>
+      <div class="category fade-in-on-scroll">Pop Latino</div>
+      <div class="category fade-in-on-scroll">Jazz</div>
+      <div class="category fade-in-on-scroll">Sports</div>
+      <div class="category fade-in-on-scroll">Decades</div>
+      <div class="category fade-in-on-scroll">'80s</div>
+      <div class="category fade-in-on-scroll">'70s</div>
+      <div class="category fade-in-on-scroll">Behind the Songs</div>
+      <div class="category fade-in-on-scroll">Afrobeats</div>
+      <div class="category fade-in-on-scroll">Reggae</div>
+      <div class="category fade-in-on-scroll">Fitness</div>
+      <div class="category fade-in-on-scroll">Motivation</div>
+      <div class="category fade-in-on-scroll">Soul/Funk</div>
+      <div class="category fade-in-on-scroll">Worldwide</div>
+    </div>
+  </div>
+</div>
+
+  <!-- Search Results -->
+  <h3 class="section-title">Search Results</h3>
+  <div id="results" class="results-grid"></div>
+
+<!-- All Popular Songs under Search tab -->
+<div class="tab-panel active" data-tab="search">
+  <h3 class="section-title">Popular</h3>
+
+  <!-- Static curated popular songs -->
+  <div id="popularSongsResults" class="song-grid">
+    <div class="song-card">
+      <img src="https://via.placeholder.com/300x300?text=Album+1" alt="Album 1">
+      <div class="song-info">
+        <div class="song-title">Metro Boomin Presents: A Futuristic Summa</div>
+        <div class="song-artist">Metro Boomin</div>
+        <div class="song-meta">Hip-Hop · 2025</div>
+      </div>
+    </div>
+
+    <div class="song-card">
+      <img src="https://via.placeholder.com/300x300?text=Album+2" alt="Album 2">
+      <div class="song-info">
+        <div class="song-title">Music for the Soul</div>
+        <div class="song-artist">Sam Barber</div>
+        <div class="song-meta">Country · 2024</div>
+      </div>
+    </div>
+
+    <div class="song-card">
+      <img src="https://via.placeholder.com/300x300?text=Album+3" alt="Album 3">
+      <div class="song-info">
+        <div class="song-title">CRISTIAN</div>
+        <div class="song-artist">Chino Pacas</div>
+        <div class="song-meta">Regional · 2025</div>
+      </div>
+    </div>
+
+    <div class="song-card">
+      <img src="https://via.placeholder.com/300x300?text=Album+4" alt="Album 4">
+      <div class="song-info">
+        <div class="song-title">DREAMSICLE (deluxe)</div>
+        <div class="song-artist">Maren Morris</div>
+        <div class="song-meta">Pop · 2023</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Divider -->
+  <div style="height: 1px; background: #eee; margin: 30px 16px;"></div>
+  <p style="text-align: center; font-size: 14px; color: #999; margin: 10px 0;">Tia Suggests...</p>
+
+<!-- Search Tab -->
+<div id="tab-search" class="tab-panel" style="display: block;">
+  <!-- Other search content (input, categories, etc.) -->
+
+  <!-- Divider -->
+  <div style="height: 1px; background: #eee; margin: 30px 16px;"></div>
+  <p style="text-align: center; font-size: 14px; color: #999; margin: 10px 0;">Tia Suggests...</p>
+
+  <!-- AI-suggested section -->
+  <div id="popularSuggestions" class="song-grid">
+    <div class="song-card">
+      <img src="https://placehold.co/300x300?text=Album+1" alt="Album 1">
+      <div class="song-info">
+        <div class="song-title">Metro Boomin Presents: A Futuristic Summa</div>
+        <div class="song-artist">Metro Boomin</div>
+        <div class="song-meta">Hip-Hop · 2025</div>
+      </div>
+    </div>
+
+    <div class="song-card">
+      <img src="https://placehold.co/300x300?text=Album+2" alt="Album 2">
+      <div class="song-info">
+        <div class="song-title">Music for the Soul</div>
+        <div class="song-artist">Sam Barber</div>
+        <div class="song-meta">Country · 2024</div>
+      </div>
+    </div>
+
+    <div class="song-card">
+      <img src="https://placehold.co/300x300?text=Album+3" alt="Album 3">
+      <div class="song-info">
+        <div class="song-title">CRISTIAN</div>
+        <div class="song-artist">Chino Pacas</div>
+        <div class="song-meta">Regional · 2025</div>
+      </div>
+    </div>
+
+    <div class="song-card">
+      <img src="https://placehold.co/300x300?text=Album+4" alt="Album 4">
+      <div class="song-info">
+        <div class="song-title">DREAMSICLE (deluxe)</div>
+        <div class="song-artist">Maren Morris</div>
+        <div class="song-meta">Pop · 2023</div>
+      </div>
+    </div>
+  </div>
+</div> <!-- ✅ closes tab-search -->
+
+<!-- Home Tab -->
+<div id="tab-home" class="tab-panel" style="display: none;">
+  <h3 class="section-title">Featured for You</h3>
+  <div id="homeFeatured" class="results-grid"></div>
+
+  <h3 class="section-title">Tia the DJ Recommends</h3>
+  <label style="font-size:14px;">
+    <input type="checkbox" id="autoTiaToggle" checked style="margin-right:6px;">
+    Auto-suggest after each song
+  </label>
+  <br />
+  <button onclick="playTiaRecommendations()">Play All Recommendations</button>
+
+  <h3 class="section-title">Lyrics</h3>
+  <div id="lyricsBox"></div>
+
+  <canvas id="visualizer" width="320" height="60" style="margin-top:20px;"></canvas>
+</div> <!-- ✅ closes tab-home -->
+
+<script>
+// your script can go here
+</script>
+<script>
+  // Firebase Setup
+  const firebaseConfig = {
+    apiKey: "AIzaSyBtKwDVR4uk5lFpZk1Xz5f4tzLTcuyAV4Q",
+    authDomain: "teenconnect-b2871.firebaseapp.com",
+    projectId: "teenconnect-b2871",
+    storageBucket: "teenconnect-b2871.appspot.com",
+    messagingSenderId: "280353230040",
+    appId: "1:280353230040:web:89f708b538f68ff077dbad"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  firebase.auth().onAuthStateChanged(user => {
+    if (!user) firebase.auth().signInAnonymously();
+    else loadHistory();
+  });
+
+  // Tab Switch
+function switchTab(tab) {
+  document.querySelectorAll(".tab-panel").forEach(el => el.classList.remove("active"));
+  document.getElementById("tab-" + tab).classList.add("active");
+
+  // Hide popular songs section by default
+  document.getElementById("popularHeader").style.display = "none";
+  document.getElementById("popularSuggestions").style.display = "none";
+
+  if (tab === 'search') {
+    document.getElementById("popularHeader").style.display = "block";
+    document.getElementById("popularSuggestions").style.display = "flex";
+    loadPopularSongs(); // fetch popular songs if not already fetched
+  }
+}
+  // Render Songs
+  function renderSongs(songs, containerId) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = "";
+    songs.forEach(song => {
+      const card = document.createElement("div");
+      card.className = "card";
+      const img = song.attributes.artwork.url.replace("{w}x{h}", "300x300");
+
+      card.innerHTML = `
+        <img src="${img}" />
+        <div class="song-name">${song.attributes.name}</div>
+        <div class="artist">${song.attributes.artistName}</div>
+        <div class="actions">
+          <button onclick='playSong(${JSON.stringify(song)})'>Play</button>
+          <button onclick='saveFavorite(${JSON.stringify(song)})'>Save</button>
+        </div>
+      `;
+      container.appendChild(card);
+    });
+  }
+
+  // Play Song + Save to History
+  // Save History
+  function saveHistory(song) {
+    const user = firebase.auth().currentUser;
+    if (!user) return;
+    const data = {
+      id: song.id,
+      name: song.attributes.name,
+      artist: song.attributes.artistName,
+      artwork: song.attributes.artwork.url.replace('{w}x{h}', '300x300'),
+      playedAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    db.collection("users").doc(user.uid).collection("history").add(data);
+  }
+
+function handleScrollFadeIn() {
+  const elements = document.querySelectorAll('.fade-in-on-scroll');
+  const windowHeight = window.innerHeight;
+
+  elements.forEach(el => {
+    const position = el.getBoundingClientRect().top;
+    if (position < windowHeight - 60) {
+      el.classList.add('fade-in-visible');
+    }
+  });
+}
+
+// Trigger on scroll inside overlay
+document.querySelector('.overlay-content').addEventListener('scroll', handleScrollFadeIn);
+
+// Also trigger when overlay opens
+function openCategoryOverlay() {
+  const overlay = document.getElementById('categoryOverlay');
+  overlay.classList.add('active');
+  document.querySelectorAll('.fade-in-on-scroll').forEach(el => {
+    el.classList.remove('fade-in-visible');
+  });
+  setTimeout(handleScrollFadeIn, 100);
+}
+
+function closeCategoryOverlay() {
+  document.getElementById('categoryOverlay').classList.remove('active');
+}
+
+// ESC to close
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeCategoryOverlay();
+});
+
+  // Load History
+function loadHistory() {
+  const user = firebase.auth().currentUser;
+  if (!user) return;
+
+  const container = document.getElementById("historyResults");
+  container.innerHTML = "<div>Loading...</div>";
+
+  db.collection("users")
+    .doc(user.uid)
+    .collection("history")
+    .orderBy("playedAt", "desc")
+    .limit(10)
+    .get()
+    .then(snapshot => {
+      const songs = [];
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        songs.push({
+          id: doc.id,
+          attributes: {
+            name: data.name,
+            artistName: data.artist,
+            artwork: { url: data.artwork }
+          }
+        });
+      });
+
+      if (songs.length === 0) {
+        container.innerHTML = "<div style='text-align:center;color:#888;'>No recently played songs yet.</div>";
+      } else {
+        renderSongs(songs, "historyResults");
+      }
+    })
+    .catch(error => {
+      console.error("Error loading history:", error);
+      container.innerHTML = "<div style='color:red;text-align:center;'>Failed to load history.</div>";
+    });
+}
+
+  // Save to Favorites
+  function saveFavorite(song) {
+    const user = firebase.auth().currentUser;
+    if (!user) return;
+    const data = {
+      id: song.id,
+      name: song.attributes.name,
+      artist: song.attributes.artistName,
+      artwork: song.attributes.artwork.url.replace("{w}x{h}", "300x300"),
+      timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    db.collection("users").doc(user.uid).collection("favorites").doc(song.id).set(data);
+  }
+
+  // Show Favorites
+  function showFavorites() {
+    const user = firebase.auth().currentUser;
+    if (!user) return;
+    db.collection("users").doc(user.uid).collection("favorites").orderBy("timestamp", "desc").get().then(snapshot => {
+      const songs = [];
+      snapshot.forEach(doc => songs.push({ id: doc.id, attributes: doc.data() }));
+      renderSongs(songs, "favoritesResults");
+    });
+  }
+
+  // Show Playlists (placeholder for now)
+  function showPlaylists() {
+    const container = document.getElementById("playlistResults");
+    container.innerHTML = `<div class="card">Playlist feature coming soon!</div>`;
+  }
+  // Visualizer Setup
+  const canvas = document.getElementById("visualizer");
+  const ctx = canvas.getContext("2d");
+  let bars = new Array(32).fill(0);
+  function animateVisualizer() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    bars = bars.map(() => Math.random() * canvas.height);
+    for (let i = 0; i < bars.length; i++) {
+      const height = bars[i];
+      const width = canvas.width / bars.length - 2;
+      ctx.fillStyle = "#d22a75";
+      ctx.fillRect(i * (width + 2), canvas.height - height, width, height);
+    }
+    requestAnimationFrame(animateVisualizer);
+  }
+
+  // AI Suggestions with Gemini
+  const GEMINI_API_KEY = "AIzaSyBtKwDVR4uk5lFpZk1Xz5f4tzLTcuyAV4Q"; // ✅ from Daily Dose
+
+async function getAISuggestions() {
+  const user = firebase.auth().currentUser;
+  if (!user) return;
+
+  const historySnap = await db.collection("users").doc(user.uid)
+    .collection("history").orderBy("playedAt", "desc").limit(5).get();
+
+  const lastSongs = historySnap.docs.map(doc => doc.data().name + " by " + doc.data().artist).join(", ");
+  const prompt = `Based on the songs: ${lastSongs}, recommend 3 similar songs with artist names.`;
+
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }]
+    })
+  });
+
+  const data = await res.json();
+  const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "No suggestions found.";
+  displayTiaSuggestions(reply);
+
+  db.collection("users").doc(user.uid).collection("tia_recommendations").add({
+    suggestions: reply,
+    generatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+}
+  function displayTiaSuggestions(text) {
+    const box = document.getElementById("tiaSuggestions");
+    box.innerHTML = `<div style="text-align:center;font-style:italic;margin-bottom:10px;">Here’s what I think you’ll love…</div>`;
+    text.split("\n").forEach(line => {
+      if (line.trim()) {
+        const div = document.createElement("div");
+        div.className = "card";
+        div.style = "width:220px;";
+        div.innerText = line.replace(/^\d+\./, "").trim();
+        box.appendChild(div);
+      }
+    });
+  }
+  // Trigger Visualizer on Play
+  document.addEventListener("musickitloaded", () => {
+    music?.addEventListener("playbackStateDidChange", (event) => {
+      if (event.state === MusicKit.PlaybackStates.playing) {
+        animateVisualizer();
+      }
+    });
+  });
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') closeCategoryOverlay();
+});
+
+let touchStartX = 0;
+document.getElementById('categoryOverlay').addEventListener('touchstart', e => {
+  touchStartX = e.changedTouches[0].clientX;
+});
+
+document.getElementById('categoryOverlay').addEventListener('touchend', e => {
+  let touchEndX = e.changedTouches[0].clientX;
+  if (touchEndX - touchStartX > 80) { // swipe right
+    closeCategoryOverlay();
+  }
+});
+const POPULAR_SONGS_KEY = 'cachedPopularSongs';
+  const POPULAR_SONGS_TIME_KEY = 'cachedPopularSongsTime';
+  const CACHE_DURATION_MS = 1000 * 60 * 60; // 1 hour
+
+  async function fetchPopularSongs() {
+    const response = await fetch('https://api.music.apple.com/v1/catalog/us/charts?types=songs&limit=10', {
+      headers: {
+        Authorization: 'Bearer YOUR_DEVELOPER_TOKEN_HERE'
+      }
+    });
+    const data = await response.json();
+    return data.results.songs[0].data;
+  }
+
+  async function loadPopularSongs() {
+    const cached = localStorage.getItem(POPULAR_SONGS_KEY);
+    const cachedTime = localStorage.getItem(POPULAR_SONGS_TIME_KEY);
+    const now = Date.now();
+
+    if (cached && cachedTime && now - cachedTime < CACHE_DURATION_MS) {
+      renderPopularSuggestions(JSON.parse(cached));
+    } else {
+      const songs = await fetchPopularSongs();
+      localStorage.setItem(POPULAR_SONGS_KEY, JSON.stringify(songs));
+      localStorage.setItem(POPULAR_SONGS_TIME_KEY, now.toString());
+      renderPopularSuggestions(songs);
+    }
+  }
+
+  function renderPopularSuggestions(songs) {
+    const container = document.getElementById('popularSuggestions');
+    container.innerHTML = '';
+    songs.forEach(song => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `
+        <img src="${song.attributes.artwork.url.replace('{w}x{h}', '200x200')}" />
+        <div class="song-name">${song.attributes.name}</div>
+        <div class="artist">${song.attributes.artistName}</div>
+      `;
+      container.appendChild(card);
+    });
+  }
+
+  // Load when Search tab is selected
+  document.querySelector('[data-tab="search"]').addEventListener('click', () => {
+    loadPopularSongs();
+  });
+// Example tab switcher logic
+document.querySelectorAll('.footer-tabs button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tab = btn.getAttribute('data-tab');
+    document.querySelectorAll('.tab-panel').forEach(panel => {
+      panel.classList.remove('active');
+      if (panel.getAttribute('data-tab') === tab) {
+        panel.classList.add('active');
+      }
+    });
+  });
+});
+</script>
+
+<footer style="
+  font-family: 'Poppins', sans-serif;
+  text-align: center;
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 60px;
+">
+  TeenConnect Music © 2025 · Powered by Apple Music
+</footer>
+<div class="tab-bar" style="
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  background: #fff;
+  border-top: 1px solid #ddd;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  z-index: 999;
+  font-family: 'Poppins', sans-serif;
+">
+</div>
+  <!-- Footer Tab Buttons -->
+<div class="footer-tabs" id="footerTabs">
+  <button id="btn-search" class="active" onclick="switchTab('search')">Search</button>
+  <button id="btn-home" onclick="switchTab('home')">Home</button>
+  <button id="btn-new" onclick="switchTab('new')">New</button>
+  <button id="btn-radio" onclick="switchTab('radio')">Radio</button>
+  <button id="btn-favorites" onclick="switchTab('favorites')">Favorites</button>
+  <button id="btn-playlists" onclick="switchTab('playlists')">Playlists</button>
+</div>
+
+</body>
+</html>
+

@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
@@ -5,20 +7,17 @@ const cors = require('cors');
 const app = express();
 app.use(cors());
 
-// ✅ Serve static files from the 'images' folder
-app.use('/images', express.static('images'));
+// ✅ Load from .env
+const TEAM_ID = process.env.TEAM_ID;
+const KEY_ID = process.env.KEY_ID;
+const PRIVATE_KEY = process.env.PRIVATE_KEY.replace(/\\n/g, '\n'); // Fix \n issue
 
-// ✅ Load credentials from environment variables
-const TEAM_ID = process.env.APPLE_TEAM_ID;
-const KEY_ID = process.env.APPLE_KEY_ID;
-const PRIVATE_KEY = (process.env.APPLE_PRIVATE_KEY || '').replace(/\\n/g, '\n'); // Converts \n to real newlines
-
-// ✅ Serve developer token on request
+// ✅ Serve developer token
 app.get('/token', (req, res) => {
   try {
     const token = jwt.sign({}, PRIVATE_KEY, {
       algorithm: 'ES256',
-      expiresIn: '180d', // Max allowed by Apple
+      expiresIn: '180d',
       issuer: TEAM_ID,
       header: {
         alg: 'ES256',
@@ -28,14 +27,17 @@ app.get('/token', (req, res) => {
 
     res.json({ token });
   } catch (err) {
-    console.error('❌ Token generation error:', err);
-    res.status(500).json({ error: 'Failed to generate token' });
+    console.error('❌ Token generation error:', err.message);
+    res.status(500).json({ error: 'Failed to generate token', details: err.message });
   }
 });
 
-// ✅ Start server
+// ✅ Optional health check
+app.get('/', (req, res) => {
+  res.send('🎶 TeenConnect Music Token Server is live!');
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`🎵 Apple Music Token Server running at http://localhost:${PORT}/token`);
-  console.log(`🖼️ Logo available at http://localhost:${PORT}/images/teenconnect-music-logo.png`);
+  console.log(`🎵 Server running at http://localhost:${PORT}/token`);
 });
